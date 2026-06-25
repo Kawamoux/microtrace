@@ -33,8 +33,18 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument("input", type=Path, help="Image file or directory of images.")
     analyze.add_argument("--output", type=Path, default=Path("results"))
     analyze.add_argument("--threshold", default="otsu", help="Use 'otsu' or a numeric threshold between 0 and 1.")
+    analyze.add_argument(
+        "--mode",
+        choices=["intensity", "brightfield"],
+        default="intensity",
+        help="Use intensity for bright objects, or brightfield for transmitted-light/phase-contrast images.",
+    )
     analyze.add_argument("--min-size", type=int, default=32, help="Minimum object area in pixels.")
     analyze.add_argument("--invert", action="store_true", help="Segment dark objects on a bright background.")
+    analyze.add_argument("--background-radius", type=float, default=18.0, help="Brightfield background blur radius.")
+    analyze.add_argument("--smooth-radius", type=float, default=1.0, help="Brightfield response smoothing radius.")
+    analyze.add_argument("--close-iterations", type=int, default=2, help="Brightfield contour closing iterations.")
+    analyze.add_argument("--no-fill-holes", action="store_true", help="Skip brightfield hole filling.")
     analyze.add_argument("--no-overlays", action="store_true", help="Skip overlay image export.")
     return parser
 
@@ -61,6 +71,11 @@ def main(argv: list[str] | None = None) -> int:
             threshold=_parse_threshold(args.threshold),
             min_size=args.min_size,
             invert=args.invert,
+            mode=args.mode,
+            background_radius=args.background_radius,
+            smooth_radius=args.smooth_radius,
+            close_iterations=args.close_iterations,
+            fill_holes=not args.no_fill_holes,
         )
         analyses = analyze_inputs(args.input, options=options)
         outputs = write_analysis_outputs(analyses, args.output, include_overlays=not args.no_overlays)

@@ -41,3 +41,17 @@ def test_otsu_threshold_separates_two_modes():
     threshold = otsu_threshold(image)
 
     assert 0.2 <= threshold <= 0.7
+
+
+def test_brightfield_mode_segments_halo_object():
+    yy, xx = np.mgrid[:72, :72]
+    distance = ((xx - 36) / 15) ** 2 + ((yy - 36) / 10) ** 2
+    image = np.full((72, 72), 0.52, dtype=np.float32)
+    image[distance <= 0.72] = 0.56
+    image[(distance > 0.72) & (distance <= 1.0)] = 0.22
+    image[(distance > 1.0) & (distance <= 1.18)] = 0.80
+
+    result = segment_image(image, mode="brightfield", min_size=120, close_iterations=2)
+
+    assert result.object_count == 1
+    assert 250 <= int((result.labels == 1).sum()) <= 700

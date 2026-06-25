@@ -52,6 +52,13 @@ microtrace simulate synthetic-data --images-per-condition 3 --seed 21
 microtrace analyze synthetic-data --output results
 ```
 
+Pour des images en lumière transmise ou phase contrast, comme des levures avec
+des halos et des contours sombres, utiliser le mode `brightfield` :
+
+```bash
+microtrace analyze image.jpg --output results --mode brightfield --min-size 250
+```
+
 La commande d'analyse écrit :
 
 - `objects.csv` : une ligne par objet segmenté.
@@ -150,6 +157,13 @@ To run each step manually:
 ```bash
 microtrace simulate synthetic-data --images-per-condition 3 --seed 21
 microtrace analyze synthetic-data --output results
+```
+
+For transmitted-light or phase-contrast images, such as yeast cells with halos
+and dark outlines, use `brightfield` mode:
+
+```bash
+microtrace analyze image.jpg --output results --mode brightfield --min-size 250
 ```
 
 The analysis command writes:

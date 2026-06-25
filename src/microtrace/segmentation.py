@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 import numpy as np
+from PIL import Image, ImageFilter
+
+
+SegmentationMode = Literal["intensity", "brightfield"]
 
 
 @dataclass(frozen=True)
@@ -46,16 +51,37 @@ def segment_image(
     threshold: float | str = "otsu",
     min_size: int = 32,
     invert: bool = False,
+    mode: SegmentationMode = "intensity",
+    background_radius: float = 18.0,
+    smooth_radius: float = 1.0,
+    close_iterations: int = 2,
+    fill_holes: bool = True,
 ) -> SegmentationResult:
     if min_size < 1:
         raise ValueError("min_size must be at least 1.")
-    threshold_value = otsu_threshold(image) if threshold == "otsu" else float(threshold)
+    if close_iterations < 0:
+        raise ValueError("close_iterations must not be negative.")
+    if mode not in {"intensity", "brightfield"}:
+        raise ValueError("mode must be 'intensity' or 'brightfield'.")
+
+    source = _brightfield_response(
+        image,
+        background_radius=background_radius,
+        smooth_radius=smooth_radius,
+    ) if mode == "brightfield" else np.asarray(image, dtype=np.float32)
+
+    threshold_value = otsu_threshold(source) if threshold == "otsu" else float(threshold)
     if not 0.0 <= threshold_value <= 1.0:
         raise ValueError("threshold must be between 0 and 1.")
 
-    mask = np.asarray(image >= threshold_value, dtype=bool)
-    if invert:
+    mask = np.asarray(source >= threshold_value, dtype=bool)
+    if invert and mode == "intensity":
         mask = ~mask
+    if mode == "brightfield":
+        mask = _binary_closing(mask, iterations=close_iterations)
+        if fill_holes:
+            mask = _fill_holes(mask)
+        mask = _binary_opening(mask, iterations=1)
     labels, object_count = label_components(mask, min_size=min_size)
     return SegmentationResult(threshold_value, mask, labels, object_count)
 
@@ -94,3 +120,100 @@ def label_components(mask: np.ndarray, *, min_size: int = 1) -> tuple[np.ndarray
                 labels[y, x] = 0
 
     return labels, current_label
+
+
+def _brightfield_response(
+    image: np.ndarray,
+    *,
+    background_radius: float,
+    smooth_radius: float,
+) -> np.ndarray:
+    values = np.asarray(image, dtype=np.float32)
+    background = _blur_array(values, radius=background_radius)
+    response = np.abs(values - background)
+    response = _blur_array(response, radius=smooth_radius)
+    return _normalize(response)
+
+
+def _blur_array(image: np.ndarray, *, radius: float) -> np.ndarray:
+    if radius <= 0:
+        return np.asarray(image, dtype=np.float32)
+    scaled = np.round(np.clip(image, 0.0, 1.0) * 255).astype(np.uint8)
+    blurred = Image.fromarray(scaled).filter(ImageFilter.GaussianBlur(radius=float(radius)))
+    return np.asarray(blurred, dtype=np.float32) / 255.0
+
+
+def _normalize(image: np.ndarray) -> np.ndarray:
+    low, high = np.percentile(image, [1.0, 99.5])
+    if high <= low:
+        return np.zeros_like(image, dtype=np.float32)
+    return np.clip((image - low) / (high - low), 0.0, 1.0).astype(np.float32)
+
+
+def _binary_closing(mask: np.ndarray, *, iterations: int) -> np.ndarray:
+    if iterations == 0:
+        return np.asarray(mask, dtype=bool)
+    return _binary_erosion(_binary_dilation(mask, iterations=iterations), iterations=iterations)
+
+
+def _binary_opening(mask: np.ndarray, *, iterations: int) -> np.ndarray:
+    if iterations == 0:
+        return np.asarray(mask, dtype=bool)
+    return _binary_dilation(_binary_erosion(mask, iterations=iterations), iterations=iterations)
+
+
+def _binary_dilation(mask: np.ndarray, *, iterations: int) -> np.ndarray:
+    result = np.asarray(mask, dtype=bool)
+    for _ in range(iterations):
+        padded = np.pad(result, 1, mode="constant", constant_values=False)
+        grown = np.zeros_like(result, dtype=bool)
+        for y_offset in range(3):
+            for x_offset in range(3):
+                grown |= padded[y_offset : y_offset + result.shape[0], x_offset : x_offset + result.shape[1]]
+        result = grown
+    return result
+
+
+def _binary_erosion(mask: np.ndarray, *, iterations: int) -> np.ndarray:
+    result = np.asarray(mask, dtype=bool)
+    for _ in range(iterations):
+        padded = np.pad(result, 1, mode="constant", constant_values=False)
+        shrunken = np.ones_like(result, dtype=bool)
+        for y_offset in range(3):
+            for x_offset in range(3):
+                shrunken &= padded[y_offset : y_offset + result.shape[0], x_offset : x_offset + result.shape[1]]
+        result = shrunken
+    return result
+
+
+def _fill_holes(mask: np.ndarray) -> np.ndarray:
+    foreground = np.asarray(mask, dtype=bool)
+    background = ~foreground
+    height, width = foreground.shape
+    seen = np.zeros_like(foreground, dtype=bool)
+    stack: list[tuple[int, int]] = []
+
+    for x in range(width):
+        if background[0, x]:
+            stack.append((0, x))
+            seen[0, x] = True
+        if background[height - 1, x] and not seen[height - 1, x]:
+            stack.append((height - 1, x))
+            seen[height - 1, x] = True
+    for y in range(height):
+        if background[y, 0] and not seen[y, 0]:
+            stack.append((y, 0))
+            seen[y, 0] = True
+        if background[y, width - 1] and not seen[y, width - 1]:
+            stack.append((y, width - 1))
+            seen[y, width - 1] = True
+
+    while stack:
+        y, x = stack.pop()
+        for ny, nx in ((y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1)):
+            if 0 <= ny < height and 0 <= nx < width and background[ny, nx] and not seen[ny, nx]:
+                seen[ny, nx] = True
+                stack.append((ny, nx))
+
+    holes = background & ~seen
+    return foreground | holes

@@ -15,6 +15,11 @@ class AnalysisOptions:
     threshold: float | str = "otsu"
     min_size: int = 32
     invert: bool = False
+    mode: str = "intensity"
+    background_radius: float = 18.0
+    smooth_radius: float = 1.0
+    close_iterations: int = 2
+    fill_holes: bool = True
 
 
 @dataclass(frozen=True)
@@ -38,6 +43,11 @@ def analyze_image(path: str | Path, *, root: str | Path | None = None, options: 
         threshold=analysis_options.threshold,
         min_size=analysis_options.min_size,
         invert=analysis_options.invert,
+        mode=analysis_options.mode,
+        background_radius=analysis_options.background_radius,
+        smooth_radius=analysis_options.smooth_radius,
+        close_iterations=analysis_options.close_iterations,
+        fill_holes=analysis_options.fill_holes,
     )
     objects = measure_objects(image_array, segmentation.labels, image_id=image_id, condition=condition)
     summary = summarize_image(
