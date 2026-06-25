@@ -52,12 +52,28 @@ microtrace simulate synthetic-data --images-per-condition 3 --seed 21
 microtrace analyze synthetic-data --output results
 ```
 
-Pour des images en lumière transmise ou phase contrast, comme des levures avec
+Pour des images en lumière transmise ou contraste de phase, comme des levures avec
 des halos et des contours sombres, utiliser le mode `brightfield` :
 
 ```bash
-microtrace analyze image.jpg --output results --mode brightfield --min-size 250
+microtrace analyze image.jpg --output results --mode brightfield --min-size 120
 ```
+
+Si des cellules proches sont encore fusionnées, essayer un seuil plus strict :
+
+```bash
+microtrace analyze image.jpg --output results --mode brightfield --min-size 120 --threshold 0.34
+```
+
+Exemple avec des grains de pollen colorés sur fond clair :
+
+```bash
+microtrace analyze pollens_grains.png --output results/pollen --mode intensity --invert --min-size 500
+```
+
+Sur l'image d'exemple testée, Microtrace détecte 13 grains de pollen, avec une
+aire médiane de 3337 px et une élongation moyenne proche de 1.08, cohérente
+avec des objets presque circulaires.
 
 La commande d'analyse écrit :
 
@@ -163,8 +179,24 @@ For transmitted-light or phase-contrast images, such as yeast cells with halos
 and dark outlines, use `brightfield` mode:
 
 ```bash
-microtrace analyze image.jpg --output results --mode brightfield --min-size 250
+microtrace analyze image.jpg --output results --mode brightfield --min-size 120
 ```
+
+If nearby cells are still merged, try a stricter threshold:
+
+```bash
+microtrace analyze image.jpg --output results --mode brightfield --min-size 120 --threshold 0.34
+```
+
+Example with colored pollen grains on a bright background:
+
+```bash
+microtrace analyze pollens_grains.png --output results/pollen --mode intensity --invert --min-size 500
+```
+
+On the tested example image, Microtrace detects 13 pollen grains, with a median
+area of 3337 px and a mean elongation close to 1.08, consistent with nearly
+circular objects.
 
 The analysis command writes:
 

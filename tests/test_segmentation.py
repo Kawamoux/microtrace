@@ -55,3 +55,16 @@ def test_brightfield_mode_segments_halo_object():
 
     assert result.object_count == 1
     assert 250 <= int((result.labels == 1).sum()) <= 700
+
+
+def test_brightfield_mode_solidifies_open_halo():
+    yy, xx = np.mgrid[:72, :72]
+    distance = ((xx - 36) / 15) ** 2 + ((yy - 36) / 10) ** 2
+    image = np.full((72, 72), 0.52, dtype=np.float32)
+    image[(distance > 0.72) & (distance <= 1.0) & (xx < 42)] = 0.22
+    image[(distance > 1.0) & (distance <= 1.18) & (xx < 42)] = 0.80
+
+    result = segment_image(image, mode="brightfield", min_size=120, close_iterations=1)
+
+    assert result.object_count == 1
+    assert int((result.labels == 1).sum()) > 250

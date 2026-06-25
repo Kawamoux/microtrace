@@ -45,6 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument("--smooth-radius", type=float, default=1.0, help="Brightfield response smoothing radius.")
     analyze.add_argument("--close-iterations", type=int, default=2, help="Brightfield contour closing iterations.")
     analyze.add_argument("--no-fill-holes", action="store_true", help="Skip brightfield hole filling.")
+    analyze.add_argument("--no-solidify", action="store_true", help="Skip brightfield object solidification.")
     analyze.add_argument("--no-overlays", action="store_true", help="Skip overlay image export.")
     return parser
 
@@ -76,6 +77,7 @@ def main(argv: list[str] | None = None) -> int:
             smooth_radius=args.smooth_radius,
             close_iterations=args.close_iterations,
             fill_holes=not args.no_fill_holes,
+            solidify=not args.no_solidify,
         )
         analyses = analyze_inputs(args.input, options=options)
         outputs = write_analysis_outputs(analyses, args.output, include_overlays=not args.no_overlays)

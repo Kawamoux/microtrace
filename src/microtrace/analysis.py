@@ -20,6 +20,7 @@ class AnalysisOptions:
     smooth_radius: float = 1.0
     close_iterations: int = 2
     fill_holes: bool = True
+    solidify: bool = True
 
 
 @dataclass(frozen=True)
@@ -48,6 +49,7 @@ def analyze_image(path: str | Path, *, root: str | Path | None = None, options: 
         smooth_radius=analysis_options.smooth_radius,
         close_iterations=analysis_options.close_iterations,
         fill_holes=analysis_options.fill_holes,
+        solidify=analysis_options.solidify,
     )
     objects = measure_objects(image_array, segmentation.labels, image_id=image_id, condition=condition)
     summary = summarize_image(

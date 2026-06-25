@@ -56,6 +56,7 @@ def segment_image(
     smooth_radius: float = 1.0,
     close_iterations: int = 2,
     fill_holes: bool = True,
+    solidify: bool = True,
 ) -> SegmentationResult:
     if min_size < 1:
         raise ValueError("min_size must be at least 1.")
@@ -78,10 +79,17 @@ def segment_image(
     if invert and mode == "intensity":
         mask = ~mask
     if mode == "brightfield":
-        mask = _binary_closing(mask, iterations=close_iterations)
-        if fill_holes:
-            mask = _fill_holes(mask)
-        mask = _binary_opening(mask, iterations=1)
+        if solidify:
+            mask = _binary_opening(mask, iterations=1)
+            mask = _solidify_components(mask, min_component_size=max(8, min_size // 5))
+            mask = _binary_opening(mask, iterations=1)
+            if fill_holes:
+                mask = _fill_holes(mask)
+        else:
+            mask = _binary_closing(mask, iterations=close_iterations)
+            if fill_holes:
+                mask = _fill_holes(mask)
+            mask = _binary_opening(mask, iterations=1)
     labels, object_count = label_components(mask, min_size=min_size)
     return SegmentationResult(threshold_value, mask, labels, object_count)
 
@@ -130,7 +138,7 @@ def _brightfield_response(
 ) -> np.ndarray:
     values = np.asarray(image, dtype=np.float32)
     background = _blur_array(values, radius=background_radius)
-    response = np.abs(values - background)
+    response = np.maximum(background - values, 0.0)
     response = _blur_array(response, radius=smooth_radius)
     return _normalize(response)
 
@@ -217,3 +225,42 @@ def _fill_holes(mask: np.ndarray) -> np.ndarray:
 
     holes = background & ~seen
     return foreground | holes
+
+
+def _solidify_components(mask: np.ndarray, *, min_component_size: int) -> np.ndarray:
+    labels, object_count = label_components(mask, min_size=min_component_size)
+    solid = np.zeros_like(mask, dtype=bool)
+    image_area = mask.shape[0] * mask.shape[1]
+
+    for object_id in range(1, object_count + 1):
+        coords = np.argwhere(labels == object_id)
+        if coords.size == 0:
+            continue
+
+        min_y, min_x = coords.min(axis=0)
+        max_y, max_x = coords.max(axis=0)
+        height = int(max_y - min_y + 1)
+        width = int(max_x - min_x + 1)
+        bbox_area = height * width
+        if width < 5 or height < 5:
+            continue
+        if bbox_area > image_area * 0.45:
+            continue
+        if max(width, height) / max(1, min(width, height)) > 4.5:
+            continue
+
+        padding = max(2, int(round(0.08 * max(width, height))))
+        y0 = max(0, int(min_y) - padding)
+        y1 = min(mask.shape[0], int(max_y) + padding + 1)
+        x0 = max(0, int(min_x) - padding)
+        x1 = min(mask.shape[1], int(max_x) + padding + 1)
+
+        yy, xx = np.mgrid[y0:y1, x0:x1]
+        center_y = (y0 + y1 - 1) / 2.0
+        center_x = (x0 + x1 - 1) / 2.0
+        radius_y = max((y1 - y0) / 2.0, 1.0)
+        radius_x = max((x1 - x0) / 2.0, 1.0)
+        ellipse = ((yy - center_y) / radius_y) ** 2 + ((xx - center_x) / radius_x) ** 2 <= 1.0
+        solid[y0:y1, x0:x1] |= ellipse
+
+    return solid
