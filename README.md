@@ -75,6 +75,8 @@ Sur l'image d'exemple testée, Microtrace détecte 13 grains de pollen, avec une
 aire médiane de 3337 px et une élongation moyenne proche de 1.08, cohérente
 avec des objets presque circulaires.
 
+![Overlay de segmentation des grains de pollen](docs/assets/pollen_overlay.png)
+
 La commande d'analyse écrit :
 
 - `objects.csv` : une ligne par objet segmenté.
@@ -197,6 +199,8 @@ microtrace analyze pollens_grains.png --output results/pollen --mode intensity -
 On the tested example image, Microtrace detects 13 pollen grains, with a median
 area of 3337 px and a mean elongation close to 1.08, consistent with nearly
 circular objects.
+
+![Pollen grain segmentation overlay](docs/assets/pollen_overlay.png)
 
 The analysis command writes:
 
