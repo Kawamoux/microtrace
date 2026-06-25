@@ -40,4 +40,4 @@ def test_otsu_threshold_separates_two_modes():
 
     threshold = otsu_threshold(image)
 
-    assert 0.1 <= threshold <= 0.8
+    assert 0.2 <= threshold <= 0.7

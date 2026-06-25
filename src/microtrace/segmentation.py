@@ -35,7 +35,9 @@ def otsu_threshold(image: np.ndarray, bins: int = 256) -> float:
     numerator = (total_mean * weight_background - mean_background) ** 2
     denominator = weight_background * weight_foreground
     score = np.divide(numerator, denominator, out=np.zeros_like(numerator), where=denominator > 0)
-    return float(centers[int(np.argmax(score))])
+    best_score = float(score.max())
+    best_centers = centers[np.isclose(score, best_score, rtol=1e-12, atol=1e-12)]
+    return float(best_centers.mean())
 
 
 def segment_image(
