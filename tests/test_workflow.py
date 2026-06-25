@@ -26,4 +26,7 @@ def test_end_to_end_demo_outputs_are_shareable(tmp_path):
 
     assert object_rows
     assert "microtrace report" in report_html
+    assert "Object Measurements" in report_html
+    assert "Integrated intensity" in report_html
+    assert object_rows[0]["image"] in report_html
     assert str(tmp_path) not in report_html

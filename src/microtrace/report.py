@@ -109,6 +109,7 @@ def _render_html(analyses: list[ImageAnalysis], overlay_paths: dict[str, str]) -
     all_areas = [measurement.area_px for result in analyses for measurement in result.objects]
     condition_rows = _condition_table(analyses)
     image_rows = "\n".join(_image_row(result) for result in analyses)
+    object_rows = _object_table(analyses)
     overlay_cards = "\n".join(_overlay_card(result, overlay_paths.get(result.image)) for result in analyses)
     histogram = _histogram_svg(all_areas)
 
@@ -192,6 +193,21 @@ def _render_html(analyses: list[ImageAnalysis], overlay_paths: dict[str, str]) -
       font-weight: 650;
     }}
     tr:last-child td {{ border-bottom: 0; }}
+    .table-scroll {{
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: white;
+    }}
+    .table-scroll table {{
+      border: 0;
+      border-radius: 0;
+      min-width: 980px;
+    }}
+    td.numeric, th.numeric {{
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }}
     .grid {{
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -247,6 +263,13 @@ def _render_html(analyses: list[ImageAnalysis], overlay_paths: dict[str, str]) -
       <thead><tr><th>Image</th><th>Condition</th><th>Threshold</th><th>Objects</th><th>Total area px</th><th>Median area px</th></tr></thead>
       <tbody>{image_rows}</tbody>
     </table>
+    <h2>Object Measurements</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr>{_object_header()}</tr></thead>
+        <tbody>{object_rows}</tbody>
+      </table>
+    </div>
     <h2>Segmentation Overlays</h2>
     <div class="grid">{overlay_cards}</div>
   </main>
@@ -291,6 +314,48 @@ def _image_row(result: ImageAnalysis) -> str:
         f"<td>{summary.median_area_px:.2f}</td>"
         "</tr>"
     )
+
+
+def _object_header() -> str:
+    labels = {
+        "image": "Image",
+        "condition": "Condition",
+        "object_id": "Object",
+        "area_px": "Area px",
+        "perimeter_px": "Perimeter px",
+        "circularity": "Circularity",
+        "elongation": "Elongation",
+        "centroid_x": "Centroid x",
+        "centroid_y": "Centroid y",
+        "bbox_x": "Box x",
+        "bbox_y": "Box y",
+        "bbox_width": "Box width",
+        "bbox_height": "Box height",
+        "mean_intensity": "Mean intensity",
+        "integrated_intensity": "Integrated intensity",
+    }
+    cells = []
+    for field in _object_fields():
+        css_class = ' class="numeric"' if field not in {"image", "condition"} else ""
+        cells.append(f"<th{css_class}>{labels[field]}</th>")
+    return "".join(cells)
+
+
+def _object_table(analyses: list[ImageAnalysis]) -> str:
+    rows: list[str] = []
+    numeric_fields = set(_object_fields()) - {"image", "condition"}
+    for result in analyses:
+        for measurement in result.objects:
+            values = measurement.as_dict()
+            cells = []
+            for field in _object_fields():
+                value = values[field]
+                css_class = ' class="numeric"' if field in numeric_fields else ""
+                cells.append(f"<td{css_class}>{html.escape(str(value))}</td>")
+            rows.append(f"<tr>{''.join(cells)}</tr>")
+    if rows:
+        return "\n".join(rows)
+    return f'<tr><td colspan="{len(_object_fields())}">No objects detected.</td></tr>'
 
 
 def _overlay_card(result: ImageAnalysis, overlay_path: str | None) -> str:
