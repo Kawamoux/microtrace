@@ -39,6 +39,55 @@ microtrace demo demo-output
 The demo command creates synthetic images, runs the analysis pipeline, and
 writes a report into `demo-output/report`.
 
+To run each step manually:
+
+```bash
+microtrace simulate synthetic-data --images-per-condition 3 --seed 21
+microtrace analyze synthetic-data --output results
+```
+
+The analysis command writes:
+
+- `objects.csv`: one row per segmented object.
+- `summary.csv`: one row per image.
+- `report.html`: a shareable report with condition summaries and overlays.
+- `overlays/`: PNG overlays showing the segmented object boundaries.
+
+## Measurement model
+
+Microtrace segments bright objects with either Otsu thresholding or a user
+provided threshold. Small connected components are removed, then each remaining
+object is measured independently.
+
+Object-level measurements include:
+
+- area and perimeter in pixels,
+- circularity,
+- elongation from the object covariance matrix,
+- centroid and bounding box,
+- mean and integrated intensity.
+
+Image-level summaries aggregate object count, total area, median area, mean
+circularity, mean elongation, and mean intensity.
+
+## Synthetic data
+
+The synthetic generator creates two simple conditions by default:
+
+- `control`: larger, more compact objects,
+- `stress`: smaller and more fragmented objects.
+
+The generator writes a `metadata.csv` file with relative image identifiers,
+condition names, seeds, and simulation parameters.
+
+## Development
+
+Run the test suite with:
+
+```bash
+python -m pytest
+```
+
 ## Design goals
 
 Microtrace keeps the analysis path explicit: every result is derived from the
