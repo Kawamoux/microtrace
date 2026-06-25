@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
+
 from .image_io import condition_from_identifier, image_identifier, iter_image_paths, load_grayscale
 from .metrics import ImageSummary, ObjectMeasurement, measure_objects, summarize_image
 from .segmentation import segment_image
@@ -17,9 +19,11 @@ class AnalysisOptions:
 
 @dataclass(frozen=True)
 class ImageAnalysis:
+    path: Path
     image: str
     condition: str
     threshold: float
+    labels: np.ndarray
     summary: ImageSummary
     objects: list[ObjectMeasurement]
 
@@ -42,7 +46,7 @@ def analyze_image(path: str | Path, *, root: str | Path | None = None, options: 
         threshold=segmentation.threshold,
         measurements=objects,
     )
-    return ImageAnalysis(image_id, condition, segmentation.threshold, summary, objects)
+    return ImageAnalysis(Path(path), image_id, condition, segmentation.threshold, segmentation.labels, summary, objects)
 
 
 def analyze_inputs(input_path: str | Path, *, options: AnalysisOptions | None = None) -> list[ImageAnalysis]:
