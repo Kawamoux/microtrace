@@ -81,8 +81,9 @@ La commande d'analyse écrit :
 
 - `objects.csv` : une ligne par objet segmenté.
 - `summary.csv` : une ligne par image.
+- `statistics.csv` : moyennes, médianes et statistiques par condition.
 - `report.html` : un rapport partageable avec résumés par condition, mesures
-  objet complètes et overlays.
+  statistiques, mesures objet complètes et overlays.
 - `overlays/` : des PNG montrant les contours des objets segmentés.
 
 ## Modèle de Mesure
@@ -207,8 +208,9 @@ The analysis command writes:
 
 - `objects.csv`: one row per segmented object.
 - `summary.csv`: one row per image.
+- `statistics.csv`: means, medians, and condition-level statistics.
 - `report.html`: a shareable report with condition summaries, complete
-  object-level measurements, and overlays.
+  statistics, object-level measurements, and overlays.
 - `overlays/`: PNG overlays showing the segmented object boundaries.
 
 ## Measurement Model

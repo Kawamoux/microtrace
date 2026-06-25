@@ -10,6 +10,7 @@ from PIL import Image
 
 from .analysis import ImageAnalysis
 from .image_io import load_grayscale
+from .metrics import ObjectMeasurement
 
 
 def write_analysis_outputs(
@@ -23,10 +24,13 @@ def write_analysis_outputs(
 
     object_rows = [measurement.as_dict() for result in analyses for measurement in result.objects]
     summary_rows = [result.summary.as_dict() for result in analyses]
+    statistics_rows = _statistics_rows(analyses)
     object_csv = output / "objects.csv"
     summary_csv = output / "summary.csv"
+    statistics_csv = output / "statistics.csv"
     _write_csv(object_csv, object_rows, _object_fields())
     _write_csv(summary_csv, summary_rows, _summary_fields())
+    _write_csv(statistics_csv, statistics_rows, _statistics_fields())
 
     overlay_paths: dict[str, str] = {}
     if include_overlays:
@@ -41,7 +45,7 @@ def write_analysis_outputs(
 
     report_path = output / "report.html"
     report_path.write_text(_render_html(analyses, overlay_paths), encoding="utf-8")
-    return {"objects": object_csv, "summary": summary_csv, "report": report_path}
+    return {"objects": object_csv, "summary": summary_csv, "statistics": statistics_csv, "report": report_path}
 
 
 def _write_csv(path: Path, rows: list[dict[str, object]], fieldnames: list[str]) -> None:
@@ -85,6 +89,20 @@ def _summary_fields() -> list[str]:
     ]
 
 
+def _statistics_fields() -> list[str]:
+    return [
+        "condition",
+        "object_count",
+        "mean_area_px",
+        "median_area_px",
+        "mean_perimeter_px",
+        "mean_circularity",
+        "mean_elongation",
+        "mean_intensity",
+        "mean_integrated_intensity",
+    ]
+
+
 def _create_overlay(image: np.ndarray, labels: np.ndarray) -> Image.Image:
     gray = np.round(np.clip(image, 0.0, 1.0) * 255).astype(np.uint8)
     rgb = np.stack((gray, gray, gray), axis=-1).astype(np.float32)
@@ -109,6 +127,7 @@ def _render_html(analyses: list[ImageAnalysis], overlay_paths: dict[str, str]) -
     all_areas = [measurement.area_px for result in analyses for measurement in result.objects]
     condition_rows = _condition_table(analyses)
     image_rows = "\n".join(_image_row(result) for result in analyses)
+    statistics_rows = _statistics_table(_statistics_rows(analyses))
     object_rows = _object_table(analyses)
     overlay_cards = "\n".join(_overlay_card(result, overlay_paths.get(result.image)) for result in analyses)
     histogram = _histogram_svg(all_areas)
@@ -263,6 +282,11 @@ def _render_html(analyses: list[ImageAnalysis], overlay_paths: dict[str, str]) -
       <thead><tr><th>Image</th><th>Condition</th><th>Threshold</th><th>Objects</th><th>Total area px</th><th>Median area px</th></tr></thead>
       <tbody>{image_rows}</tbody>
     </table>
+    <h2>Measurement Statistics</h2>
+    <table>
+      <thead><tr>{_statistics_header()}</tr></thead>
+      <tbody>{statistics_rows}</tbody>
+    </table>
     <h2>Object Measurements</h2>
     <div class="table-scroll">
       <table>
@@ -314,6 +338,78 @@ def _image_row(result: ImageAnalysis) -> str:
         f"<td>{summary.median_area_px:.2f}</td>"
         "</tr>"
     )
+
+
+def _statistics_rows(analyses: list[ImageAnalysis]) -> list[dict[str, object]]:
+    grouped: dict[str, list[ObjectMeasurement]] = {"all": []}
+    for result in analyses:
+        grouped["all"].extend(result.objects)
+        grouped.setdefault(result.condition, []).extend(result.objects)
+    return [_statistics_row(condition, measurements) for condition, measurements in sorted(grouped.items())]
+
+
+def _statistics_row(condition: str, measurements: list[ObjectMeasurement]) -> dict[str, object]:
+    if not measurements:
+        return {
+            "condition": condition,
+            "object_count": 0,
+            "mean_area_px": 0.0,
+            "median_area_px": 0.0,
+            "mean_perimeter_px": 0.0,
+            "mean_circularity": 0.0,
+            "mean_elongation": 0.0,
+            "mean_intensity": 0.0,
+            "mean_integrated_intensity": 0.0,
+        }
+
+    areas = np.array([measurement.area_px for measurement in measurements], dtype=np.float64)
+    perimeters = np.array([measurement.perimeter_px for measurement in measurements], dtype=np.float64)
+    circularities = np.array([measurement.circularity for measurement in measurements], dtype=np.float64)
+    elongations = np.array([measurement.elongation for measurement in measurements], dtype=np.float64)
+    intensities = np.array([measurement.mean_intensity for measurement in measurements], dtype=np.float64)
+    integrated = np.array([measurement.integrated_intensity for measurement in measurements], dtype=np.float64)
+    return {
+        "condition": condition,
+        "object_count": len(measurements),
+        "mean_area_px": round(float(areas.mean()), 3),
+        "median_area_px": round(float(np.median(areas)), 3),
+        "mean_perimeter_px": round(float(perimeters.mean()), 3),
+        "mean_circularity": round(float(circularities.mean()), 6),
+        "mean_elongation": round(float(elongations.mean()), 6),
+        "mean_intensity": round(float(intensities.mean()), 6),
+        "mean_integrated_intensity": round(float(integrated.mean()), 6),
+    }
+
+
+def _statistics_header() -> str:
+    labels = {
+        "condition": "Condition",
+        "object_count": "Objects",
+        "mean_area_px": "Mean area px",
+        "median_area_px": "Median area px",
+        "mean_perimeter_px": "Mean perimeter px",
+        "mean_circularity": "Mean circularity",
+        "mean_elongation": "Mean elongation",
+        "mean_intensity": "Mean intensity",
+        "mean_integrated_intensity": "Mean integrated intensity",
+    }
+    cells = []
+    for field in _statistics_fields():
+        css_class = ' class="numeric"' if field != "condition" else ""
+        cells.append(f"<th{css_class}>{labels[field]}</th>")
+    return "".join(cells)
+
+
+def _statistics_table(rows: list[dict[str, object]]) -> str:
+    table_rows = []
+    numeric_fields = set(_statistics_fields()) - {"condition"}
+    for row in rows:
+        cells = []
+        for field in _statistics_fields():
+            css_class = ' class="numeric"' if field in numeric_fields else ""
+            cells.append(f"<td{css_class}>{html.escape(str(row[field]))}</td>")
+        table_rows.append(f"<tr>{''.join(cells)}</tr>")
+    return "\n".join(table_rows)
 
 
 def _object_header() -> str:
